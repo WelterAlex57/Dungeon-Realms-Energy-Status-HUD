@@ -1,0 +1,14 @@
+[
+  {
+    "modid": "circularxp",
+    "name": "Circular XP Bar",
+    "description": "Replaces the XP bar with a ring around the crosshair, for HUD/energy-style tracking (e.g. Dungeon Realms).",
+    "version": "1.0.0",
+    "mcversion": "1.12.2",
+    "authorList": ["RestrictedAccess"],
+    "credits": "",
+    "logoFile": "",
+    "screenshots": [],
+    "dependencies": []
+  }
+]
