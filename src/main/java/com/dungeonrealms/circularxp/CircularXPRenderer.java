@@ -16,8 +16,10 @@ import org.lwjgl.opengl.GL11;
 
 /**
  * Draws a ring around the crosshair that mirrors the vanilla XP bar (which stays
- * visible at the bottom of the screen as normal). The ring has a small gap at the
- * bottom rather than being a full closed circle.
+ * visible at the bottom of the screen as normal). The ring is split into a left
+ * arc and a right arc, each with a gap at the top and bottom (rather than one
+ * continuous ring with a single gap), and each side fills from bottom to top as
+ * XP increases.
  *
  * Size, color, and on/off are all controlled by ModConfig (see the mod's Config
  * button on the mods list, or the in-game toggle keybind under Controls).
@@ -28,17 +30,27 @@ public class CircularXPRenderer {
     // ---- Appearance knobs -------------------------------------------------
     private static final float RADIUS_INNER_BASE = 12f;   // px from crosshair center, inner edge of ring
     private static final float RADIUS_OUTER_BASE = 16f;   // px from crosshair center, outer edge of ring
-    private static final int   SEGMENTS          = 80;     // smoothness of the circle (higher = smoother)
+    private static final int   SEGMENTS          = 40;     // smoothness per half-arc (higher = smoother)
 
-    // Gap in the ring, in degrees, centered at the bottom (like the reference screenshot).
-    // Set to 0 for a full unbroken circle.
+    // Gap size in degrees, used at both the top and the bottom, splitting the ring
+    // into a left half-arc and a right half-arc. Set to 0 to make each arc a full
+    // half-circle (touching, but still visually two pieces).
     private static final float GAP_DEGREES = 40f;
     private static final float GAP_FRACTION = GAP_DEGREES / 360f;
+    private static final float ARC_LENGTH_T = 0.5f - GAP_FRACTION;
 
-    // Internal: where the drawable (non-gap) part of the ring starts/how far it sweeps,
-    // expressed as a fraction of a full circle. 0.75 = bottom, using this class's angle convention.
-    private static final float USABLE_START_T = 0.75f + GAP_FRACTION / 2f;
-    private static final float USABLE_SWEEP_T = 1f - GAP_FRACTION;
+    // Internal: for each of the two arcs, where it starts (as a fraction of a full
+    // circle, using this class's angle convention where 0.75 = bottom, 0.25 = top)
+    // and how far/which direction it sweeps. Both arcs start near the bottom gap
+    // and sweep up toward the top gap, so XP fills from the bottom on both sides.
+    private static final float[] ARC_START_T = {
+            0.75f - GAP_FRACTION / 2f, // right arc: just before the bottom gap
+            0.75f + GAP_FRACTION / 2f  // left arc: just after the bottom gap
+    };
+    private static final float[] ARC_SWEEP_T = {
+            -ARC_LENGTH_T, // right arc sweeps "backwards" (up through the right side) to the top gap
+            ARC_LENGTH_T   // left arc sweeps "forwards" (up through the left side) to the top gap
+    };
 
     // Background (empty) ring color — fixed regardless of style, so it always reads as "empty"
     private static final float BG_R = 0.10f, BG_G = 0.10f, BG_B = 0.10f, BG_A = 0.55f;
@@ -123,8 +135,11 @@ public class CircularXPRenderer {
         GlStateManager.disableDepth();
         GlStateManager.color(1f, 1f, 1f, 1f);
 
-        // Full background ring (always shown, so you can see "empty" too)
-        drawRingArc(cx, cy, radiusInner, radiusOuter, 0f, 1f, BG_R, BG_G, BG_B, BG_A);
+        // Full background for both arcs (always shown, so you can see "empty" too)
+        for (int i = 0; i < 2; i++) {
+            drawRingArc(cx, cy, radiusInner, radiusOuter, ARC_START_T[i], ARC_SWEEP_T[i],
+                    0f, 1f, BG_R, BG_G, BG_B, BG_A);
+        }
 
         if (percent > 0f) {
             ModConfig.ColorStyle style = ModConfig.colorStyle;
@@ -139,7 +154,10 @@ public class CircularXPRenderer {
             } else {
                 r = style.r; g = style.g; b = style.b; a = FG_A;
             }
-            drawRingArc(cx, cy, radiusInner, radiusOuter, 0f, percent, r, g, b, a);
+            for (int i = 0; i < 2; i++) {
+                drawRingArc(cx, cy, radiusInner, radiusOuter, ARC_START_T[i], ARC_SWEEP_T[i],
+                        0f, percent, r, g, b, a);
+            }
         }
 
         if (ModConfig.borderEnabled) {
@@ -154,9 +172,13 @@ public class CircularXPRenderer {
             float ba = 0.9f;
 
             // Outline just outside the outer edge, and just inside the inner edge,
-            // across the full drawable sweep (not tied to xp percent).
-            drawRingArc(cx, cy, radiusOuter, radiusOuter + thickness, 0f, 1f, br, bg, bb, ba);
-            drawRingArc(cx, cy, radiusInner - thickness, radiusInner, 0f, 1f, br, bg, bb, ba);
+            // for both arcs, across their full sweep (not tied to xp percent).
+            for (int i = 0; i < 2; i++) {
+                drawRingArc(cx, cy, radiusOuter, radiusOuter + thickness, ARC_START_T[i], ARC_SWEEP_T[i],
+                        0f, 1f, br, bg, bb, ba);
+                drawRingArc(cx, cy, radiusInner - thickness, radiusInner, ARC_START_T[i], ARC_SWEEP_T[i],
+                        0f, 1f, br, bg, bb, ba);
+            }
         }
 
         GlStateManager.color(1f, 1f, 1f, 1f);
@@ -168,11 +190,13 @@ public class CircularXPRenderer {
     }
 
     /**
-     * Draws an annulus arc from startFrac to endFrac (0..1, where 0 = start of the
-     * drawable ring just past the gap, 1 = end of the drawable ring just before the
-     * gap on the other side) using a triangle strip between the inner and outer radius.
+     * Draws an annulus arc using a triangle strip between the inner and outer radius.
+     * startT/sweepT define where this arc sits on the circle (see ARC_START_T/ARC_SWEEP_T);
+     * startFrac/endFrac (0..1) select what portion of that arc to actually draw, letting
+     * the same arc definition serve both the full background and a partial xp-percent fill.
      */
     private void drawRingArc(float cx, float cy, float radiusInner, float radiusOuter,
+                              float startT, float sweepT,
                               float startFrac, float endFrac,
                               float r, float g, float b, float a) {
         if (endFrac <= startFrac) {
@@ -187,7 +211,7 @@ public class CircularXPRenderer {
 
         for (int i = 0; i <= segs; i++) {
             float f = startFrac + (endFrac - startFrac) * (i / (float) segs);
-            float t = USABLE_START_T + f * USABLE_SWEEP_T;
+            float t = startT + f * sweepT;
             float angle = (float) (-Math.PI / 2.0 + t * Math.PI * 2.0);
             float dx = (float) Math.sin(angle);
             float dy = (float) -Math.cos(angle);
