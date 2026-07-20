@@ -142,6 +142,23 @@ public class CircularXPRenderer {
             drawRingArc(cx, cy, radiusInner, radiusOuter, 0f, percent, r, g, b, a);
         }
 
+        if (ModConfig.borderEnabled) {
+            float thickness = Math.max(0.25f, ModConfig.borderThickness * scale);
+            float br, bg, bb;
+            if (ModConfig.borderColor == ModConfig.BorderColor.MATCH) {
+                ModConfig.ColorStyle style = ModConfig.colorStyle;
+                br = style.r; bg = style.g; bb = style.b;
+            } else {
+                br = ModConfig.borderColor.r; bg = ModConfig.borderColor.g; bb = ModConfig.borderColor.b;
+            }
+            float ba = 0.9f;
+
+            // Outline just outside the outer edge, and just inside the inner edge,
+            // across the full drawable sweep (not tied to xp percent).
+            drawRingArc(cx, cy, radiusOuter, radiusOuter + thickness, 0f, 1f, br, bg, bb, ba);
+            drawRingArc(cx, cy, radiusInner - thickness, radiusInner, 0f, 1f, br, bg, bb, ba);
+        }
+
         GlStateManager.color(1f, 1f, 1f, 1f);
         GlStateManager.enableDepth();
         GlStateManager.disableBlend();
