@@ -15,7 +15,12 @@ public class ModConfig {
 
     public static boolean enabled = true;
     public static float scale = 1.0f;
+    public static RingStyle ringStyle = RingStyle.SPLIT;
     public static ColorStyle colorStyle = ColorStyle.GREEN;
+
+    // Only used when colorStyle == CUSTOM
+    public static String customColorHex = "4DD958";
+    public static float customR = 0.30f, customG = 0.85f, customB = 0.35f;
 
     public static boolean borderEnabled = true;
     public static float borderThickness = 1.0f;
@@ -23,13 +28,21 @@ public class ModConfig {
 
     private static final String CATEGORY_GENERAL = Configuration.CATEGORY_GENERAL;
 
+    /** Overall ring shape drawn around the crosshair. */
+    public enum RingStyle {
+        FULL,        // one unbroken circle
+        SINGLE_GAP,  // one ring with a single gap at the bottom
+        SPLIT        // two half-arcs, gap at both top and bottom (current default look)
+    }
+
     public enum ColorStyle {
         GREEN(0.30f, 0.85f, 0.35f),
         BLUE(0.25f, 0.55f, 0.95f),
         RED(0.90f, 0.25f, 0.20f),
         PURPLE(0.65f, 0.30f, 0.90f),
         GOLD(0.95f, 0.75f, 0.20f),
-        WHITE(0.90f, 0.90f, 0.90f);
+        WHITE(0.90f, 0.90f, 0.90f),
+        CUSTOM(-1f, -1f, -1f); // special-cased in the renderer to use customR/customG/customB
 
         public final float r, g, b;
 
@@ -78,15 +91,34 @@ public class ModConfig {
                 "Size multiplier for the ring. 1.0 = default size, smaller = smaller ring, larger = bigger ring."
         );
 
+        String ringStyleName = config.getString(
+                "Style", CATEGORY_GENERAL, RingStyle.SPLIT.name(),
+                "Ring shape. Options: FULL (unbroken circle), SINGLE_GAP (one ring, gap at the bottom), SPLIT (two half-arcs, gap at top and bottom)"
+        );
+        try {
+            ringStyle = RingStyle.valueOf(ringStyleName.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            ringStyle = RingStyle.SPLIT;
+        }
+
         String styleName = config.getString(
                 "ColorStyle", CATEGORY_GENERAL, ColorStyle.GREEN.name(),
-                "Ring color style. Options: GREEN, BLUE, RED, PURPLE, GOLD, WHITE"
+                "Ring color style. Options: GREEN, BLUE, RED, PURPLE, GOLD, WHITE, CUSTOM (uses the CustomColorHex value below)"
         );
         try {
             colorStyle = ColorStyle.valueOf(styleName.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
             colorStyle = ColorStyle.GREEN;
         }
+
+        customColorHex = config.getString(
+                "CustomColorHex", CATEGORY_GENERAL, "4DD958",
+                "Custom ring color as a hex code (RRGGBB, with or without a leading #). Only used when ColorStyle is set to CUSTOM."
+        );
+        float[] rgb = parseHexColor(customColorHex);
+        customR = rgb[0];
+        customG = rgb[1];
+        customB = rgb[2];
 
         borderEnabled = config.getBoolean(
                 "BorderEnabled", CATEGORY_GENERAL, true,
@@ -121,6 +153,25 @@ public class ModConfig {
         config.get(CATEGORY_GENERAL, "Enabled", true).set(enabled);
         if (config.hasChanged()) {
             config.save();
+        }
+    }
+
+    private static float[] parseHexColor(String hex) {
+        try {
+            String h = hex.trim();
+            if (h.startsWith("#")) {
+                h = h.substring(1);
+            }
+            if (h.length() != 6) {
+                throw new NumberFormatException("Expected 6 hex digits");
+            }
+            int r = Integer.parseInt(h.substring(0, 2), 16);
+            int g = Integer.parseInt(h.substring(2, 4), 16);
+            int b = Integer.parseInt(h.substring(4, 6), 16);
+            return new float[]{r / 255f, g / 255f, b / 255f};
+        } catch (Exception e) {
+            // Fall back to the default green if the hex string is malformed.
+            return new float[]{0.30f, 0.85f, 0.35f};
         }
     }
 }
