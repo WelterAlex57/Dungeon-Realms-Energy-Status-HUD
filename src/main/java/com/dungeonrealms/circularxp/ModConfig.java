@@ -17,6 +17,10 @@ public class ModConfig {
     public static float scale = 1.0f;
     public static ColorStyle colorStyle = ColorStyle.GREEN;
 
+    public static boolean borderEnabled = true;
+    public static float borderThickness = 1.0f;
+    public static BorderColor borderColor = BorderColor.BLACK;
+
     private static final String CATEGORY_GENERAL = Configuration.CATEGORY_GENERAL;
 
     public enum ColorStyle {
@@ -30,6 +34,23 @@ public class ModConfig {
         public final float r, g, b;
 
         ColorStyle(float r, float g, float b) {
+            this.r = r;
+            this.g = g;
+            this.b = b;
+        }
+    }
+
+    public enum BorderColor {
+        BLACK(0.0f, 0.0f, 0.0f),
+        WHITE(1.0f, 1.0f, 1.0f),
+        GRAY(0.5f, 0.5f, 0.5f),
+        DARK_GRAY(0.15f, 0.15f, 0.15f),
+        GOLD(0.95f, 0.75f, 0.20f),
+        MATCH(-1f, -1f, -1f); // special-cased in the renderer to reuse whatever ColorStyle is selected
+
+        public final float r, g, b;
+
+        BorderColor(float r, float g, float b) {
             this.r = r;
             this.g = g;
             this.b = b;
@@ -65,6 +86,26 @@ public class ModConfig {
             colorStyle = ColorStyle.valueOf(styleName.trim().toUpperCase());
         } catch (IllegalArgumentException e) {
             colorStyle = ColorStyle.GREEN;
+        }
+
+        borderEnabled = config.getBoolean(
+                "BorderEnabled", CATEGORY_GENERAL, true,
+                "Whether to draw a thin outline around the inner and outer edges of the ring."
+        );
+
+        borderThickness = (float) config.getFloat(
+                "BorderThickness", CATEGORY_GENERAL, 1.0f, 0.5f, 4.0f,
+                "Border thickness in pixels (scales along with the ring's Scale setting)."
+        );
+
+        String borderColorName = config.getString(
+                "BorderColor", CATEGORY_GENERAL, BorderColor.BLACK.name(),
+                "Border color. Options: BLACK, WHITE, GRAY, DARK_GRAY, GOLD, MATCH (matches the ring's current fill color)"
+        );
+        try {
+            borderColor = BorderColor.valueOf(borderColorName.trim().toUpperCase());
+        } catch (IllegalArgumentException e) {
+            borderColor = BorderColor.BLACK;
         }
 
         if (config.hasChanged()) {
