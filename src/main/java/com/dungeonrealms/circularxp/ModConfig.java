@@ -73,14 +73,22 @@ public class ModConfig {
     public static void init(File configFile) {
         if (config == null) {
             config = new Configuration(configFile);
-            load();
+            config.load(); // read from disk — only needed once, at startup
+            sync();
         }
     }
 
-    /** Reads values from the Configuration object into the cached static fields. */
+    /**
+     * Re-reads values from the (already in-memory) Configuration object into the cached
+     * static fields, and persists any changes to disk. Deliberately does NOT call
+     * config.load() here — that would re-read the file from disk and stomp whatever the
+     * config GUI just wrote into memory but hasn't necessarily flushed to disk yet.
+     */
     public static void load() {
-        config.load();
+        sync();
+    }
 
+    private static void sync() {
         enabled = config.getBoolean(
                 "Enabled", CATEGORY_GENERAL, true,
                 "Master on/off switch for the circular XP ring. Can also be toggled in-game with a keybind (set it under Controls)."
